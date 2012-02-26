@@ -1,0 +1,28 @@
+GIT
+  remote: https://github.com/akicho8/rain_table.git
+  revision: d0f78d891e997b8f0549d6a809d4b07fe9dd7fd4
+  specs:
+    rain_table (0.1.0)
+      activesupport
+
+GEM
+  remote: http://rubygems.org/
+  specs:
+    activesupport (3.2.1)
+      i18n (~> 0.6)
+      multi_json (~> 1.0)
+    i18n (0.6.0)
+    multi_json (1.0.4)
+    rspec-core (2.8.0)
+    tapp (1.3.0)
+      thor
+    thor (0.14.6)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  activesupport
+  rain_table!
+  rspec-core
+  tapp
