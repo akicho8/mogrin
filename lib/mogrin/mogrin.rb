@@ -3,7 +3,7 @@
 require "active_support/core_ext/string"
 require "active_support/core_ext/array"
 require "active_support/buffered_logger"
-require "simple_table"
+require "rain_table"
 require "open3"
 require "tapp"
 
