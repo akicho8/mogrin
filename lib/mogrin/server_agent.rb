@@ -35,7 +35,7 @@ module Mogrin
       remote_run("uptime"){|str|
         # ["16:41", "up", "4", "days,", "14:40,", "4", "users,", "load", "averages:", "0.89", "0.62", "0.58"]
         #                                                                                     ^^^^^^
-        str.scan(/\S+/)[-2]
+        str.split(/[,\s]+/)[-2]
       }
     end
 

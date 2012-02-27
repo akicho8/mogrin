@@ -121,7 +121,9 @@ module Mogrin
       if @config[:match]
         items.find_all{|item|
           keys.any?{|key|
-            item[key].include?(@config[:match])
+            if s = item[key]
+              s.match(/#{@config[:match]}/i)
+            end
           }
         }
       else
@@ -137,7 +139,7 @@ module Mogrin
         ServerAgent.new(self, item).result
       }
       quiet{puts}
-      puts SimpleTable.generate(rows){|options|
+      puts RainTable.generate(rows){|options|
         options[:select] = [
           {:key => :c_desc,            :label => "用途",     :size => nil},
           {:key => :c_host,            :label => "鯖名",     :size => nil},
@@ -163,20 +165,20 @@ module Mogrin
         UrlAgent.new(self, item).result
       }
       quiet{puts}
-      puts SimpleTable.generate(rows){|options|
+      puts RainTable.generate(rows){|options|
         options[:select] = [
-          {:key => :c_desc,             :label => "用途",         :size => nil},
-          {:key => :c_url,              :label => "URL",          :size => nil},
-          {:key => :c_status,           :label => "状態",         :size => 20},
-          {:key => :c_revision,         :label => "Rev",          :size => 7},
-          {:key => :c_updated_at_s,     :label => "最終",         :size => 18},
-          {:key => :c_commiter,         :label => "書人",         :size => 4},
-          {:key => :c_before_days,      :label => "経過",         :size => nil},
-          {:key => :c_pending_count,    :label => "PE",           :size => nil},
-          {:key => :c_site_title,       :label => "タイトル",     :size => 20},
-          {:key => :c_x_runtime,        :label => "x-rt",         :size => 4},
-          {:key => :c_response_time,    :label => "反射",         :size => nil},
-          {:key => :c_server,           :label => "鯖面",         :size => 4},
+          {:key => :c_desc,             :label => "用途",     :size => nil},
+          {:key => :c_url,              :label => "URL",      :size => nil},
+          {:key => :c_status,           :label => "状態",     :size => 6},
+          {:key => :c_revision,         :label => "Rev",      :size => 7},
+          {:key => :c_updated_at_s,     :label => "最終",     :size => 18},
+          {:key => :c_commiter,         :label => "書人",     :size => 4},
+          {:key => :c_before_days,      :label => "経過",     :size => nil},
+          {:key => :c_pending_count,    :label => "PE",       :size => nil},
+          {:key => :c_site_title,       :label => "タイトル", :size => 8},
+          # {:key => :c_x_runtime,        :label => "x-rt",     :size => 4},
+          {:key => :c_response_time,    :label => "反射",     :size => nil},
+          # {:key => :c_server,           :label => "鯖面",     :size => 4},
         ]
       }
     end

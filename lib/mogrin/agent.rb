@@ -12,7 +12,13 @@ module Mogrin
 
     def result
       private_methods.grep(/\A(c_)/).inject({}){|h, key|
-        h.merge(key => send(key))
+        begin
+          v = send(key)
+        rescue => error
+          @base.logger_puts("#{key}: #{error.inspect}")
+          v = error.inspect
+        end
+        h.merge(key => v)
       }
     end
   end

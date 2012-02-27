@@ -87,6 +87,8 @@ module Mogrin
     end
 
     module RevisionMethods
+      private
+
       def c_revision
         # return "cc2a41342eb55087b06567184f4879cbed00f1f5"
         unless @revision
@@ -98,6 +100,7 @@ module Mogrin
               }
             end
           rescue => error
+            @base.logger_puts("ERROR: #{error}")
           end
           if str && md = str.strip.match(/\A(?<revision>[a-z\d]+)/)
             @revision = md[:revision]
@@ -107,7 +110,7 @@ module Mogrin
       end
 
       def site_top
-        ui = URI.parse(url)
+        ui = URI.parse(c_url)
         "#{ui.scheme}://#{ui.host}"
       end
 
@@ -117,13 +120,13 @@ module Mogrin
 
       def c_commiter
         if c_revision
-          @base.task_run("git log --pretty='%cn' #{c_revision}^..#{c_revision}")
+          @base.command_run("git log --pretty='%cn' #{c_revision}^..#{c_revision}")
         end
       end
 
       def c_pending_count
         if c_revision
-          @base.task_run("git log --oneline #{c_revision}..").lines.count
+          @base.command_run("git log --oneline #{c_revision}..").lines.count
         end
       end
 
@@ -136,8 +139,10 @@ module Mogrin
       def updated_at
         unless @updated_at
           if c_revision
-            str = @base.task_run("git log --pretty='%cd' #{c_revision}^..#{c_revision}")
-            @updated_at = Time.parse(str)
+            str = @base.command_run("git log --pretty='%cd' #{c_revision}^..#{c_revision}")
+            if str.present?
+              @updated_at = Time.parse(str)
+            end
           end
         end
         @updated_at
