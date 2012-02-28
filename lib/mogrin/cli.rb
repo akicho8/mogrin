@@ -7,7 +7,7 @@ module Mogrin
   module CLI
     extend self
 
-    def execute(args = ARGV)
+    def execute(args)
       config = Core.default_config
 
       oparser = OptionParser.new do |oparser|
@@ -18,13 +18,13 @@ module Mogrin
         ].join
         oparser.on("タスク")
         oparser.on("    server  鯖のチェック")
-        oparser.on("    url     URL毎にチェック")
+        oparser.on("    url     URLのチェック")
         oparser.on("    list    監視対象の確認")
         oparser.on("オプション")
         oparser.on("-t", "--timeout=Float", "タイムアウト(#{config[:timeout]})", Float) {|v|config[:timeout] = v}
         oparser.on("-f", "--file=FILE", "読み込むファイルを指定", String) {|v|config[:file] = v}
         oparser.on("-q", "--quiet", "静かにする(#{config[:quiet]})"){|v|config[:quiet] = v}
-        oparser.on("-x", "--skip-config", "設定ファイルを読み込まない(#{config[:skip_config]})"){|v|config[:skip_config] = v}
+        oparser.on("-x", "--skip-config", "デフォルトの設定ファイルを読み込まない(#{config[:skip_config]})"){|v|config[:skip_config] = v}
         oparser.on("-m", "--match=STRING", "マッチしたもののみ", String) {|v|config[:match] = v}
         oparser.on("-d", "--debug", "デバッグモード(#{config[:debug]})"){|v|config[:debug] = v}
         oparser.on("--help", "このヘルプを表示する") {puts oparser; abort}

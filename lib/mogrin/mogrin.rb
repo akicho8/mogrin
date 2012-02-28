@@ -8,8 +8,6 @@ require "open3"
 require "tapp"
 
 require_relative "agent"
-require_relative "server_agent"
-require_relative "url_agent"
 
 module Mogrin
   class Core
@@ -59,6 +57,7 @@ module Mogrin
     end
 
     attr_accessor :config
+    attr_reader :signal_interrupt
 
     def initialize(args = [], config = {}, &block)
       @args = args
@@ -91,30 +90,40 @@ module Mogrin
         @args << "server"
       end
 
-      @args.each{|task|
-        public_send("#{task}_task")
-      }
+      Signal.trap(:INT) do
+        @signal_interrupt = true
+        puts "[BREAK]"
+      end
+
+      @args.each do |task|
+        "mogrin/#{task}_task".classify.safe_constantize.new(self).execute
+        if @signal_interrupt
+          break
+        end
+      end
     end
 
     def servers
       if @config[:servers]
-        @config[:servers]
+        items = @config[:servers]
       else
-        [
+        items = [
           {:host => "localhost"},
         ]
       end
+      filter(items, [:desc, :host])
     end
 
     def urls
       if @config[:urls]
-        @config[:urls]
+        items = @config[:urls]
       else
-        [
+        items = [
           {:url => "http://localhost/"},
           {:url => "http://www.google.co.jp/"},
         ]
       end
+      filter(items, [:desc, :url])
     end
 
     def filter(items, keys)
@@ -129,63 +138,6 @@ module Mogrin
       else
         items
       end
-    end
-
-    def server_task
-      items = servers
-      items = filter(items, [:desc, :host])
-      rows = items.enum_for(:each_with_index).collect{|item, index|
-        quiet{print "#{items.size - index} "}
-        ServerAgent.new(self, item).result
-      }
-      quiet{puts}
-      puts RainTable.generate(rows){|options|
-        options[:select] = [
-          {:key => :c_desc,            :label => "用途",     :size => nil},
-          {:key => :c_host,            :label => "鯖名",     :size => nil},
-          {:key => :c_name2ip,         :label => "正引き",   :size => nil},
-          {:key => :c_ip2name,         :label => "逆引き",   :size => 20},
-          {:key => :c_inside_hostname, :label => "内側HN",   :size => nil},
-          {:key => :c_loadavg,         :label => "LAVG",     :size => nil},
-          {:key => :c_passenger_count, :label => "PSG",      :size => nil},
-          {:key => :c_nginx_count,     :label => "NGX",      :size => nil},
-          {:key => :c_unicorn_count,   :label => "UNC",      :size => nil},
-          {:key => :c_resque_count,    :label => "RSQ",      :size => nil},
-          {:key => :c_redis_count,     :label => "RDS",      :size => nil},
-          {:key => :c_memcached_count, :label => "MEC",      :size => nil},
-        ]
-      }
-    end
-
-    def url_task
-      items = urls
-      items = filter(items, [:desc, :url])
-      rows = items.enum_for(:each_with_index).collect{|item, index|
-        quiet{print "#{items.size - index} "}
-        UrlAgent.new(self, item).result
-      }
-      quiet{puts}
-      puts RainTable.generate(rows){|options|
-        options[:select] = [
-          {:key => :c_desc,             :label => "用途",     :size => nil},
-          {:key => :c_url,              :label => "URL",      :size => nil},
-          {:key => :c_status,           :label => "状態",     :size => 6},
-          {:key => :c_revision,         :label => "Rev",      :size => 7},
-          {:key => :c_updated_at_s,     :label => "最終",     :size => 18},
-          {:key => :c_commiter,         :label => "書人",     :size => 4},
-          {:key => :c_before_days,      :label => "経過",     :size => nil},
-          {:key => :c_pending_count,    :label => "PE",       :size => nil},
-          {:key => :c_site_title,       :label => "タイトル", :size => 8},
-          # {:key => :c_x_runtime,        :label => "x-rt",     :size => 4},
-          {:key => :c_response_time,    :label => "反射",     :size => nil},
-          # {:key => :c_server,           :label => "鯖面",     :size => 4},
-        ]
-      }
-    end
-
-    def list_task
-      pp servers
-      pp urls
     end
 
     def logger
@@ -216,6 +168,99 @@ module Mogrin
         logger_puts("ERROR: #{stderr.inspect}")
       end
       stdout
+    end
+
+    def int_block(&block)
+      if @signal_interrupt
+        return
+      end
+      t = Thread.start(&block)
+      while t.alive?
+        if @signal_interrupt
+          t.kill
+          return
+        end
+        sleep(0.1)
+      end
+      t.value
+    end
+  end
+
+  class Task
+    def initialize(base)
+      @base = base
+    end
+
+    def execute
+      raise NotImplementedError, "#{__method__} is not implemented"
+    end
+  end
+
+  class ServerTask < Task
+    def execute
+      items = @base.servers
+      rows = items.enum_for(:each_with_index).collect{|item, index|
+        @base.quiet{print "#{items.size - index} "}
+        @base.int_block{Agent::ServerAgent.new(@base, item).result}
+      }.compact
+      if rows.present?
+        @base.quiet{puts}
+        puts RainTable.generate(rows){|options|
+          options[:select] = [
+            {:key => :c_desc,            :label => "用途",     :size => nil},
+            {:key => :c_host,            :label => "鯖名",     :size => nil},
+            {:key => :c_name2ip,         :label => "正引き",   :size => nil},
+            {:key => :c_ip2name,         :label => "逆引き",   :size => 20},
+            {:key => :c_inside_hostname, :label => "内側HN",   :size => nil},
+            {:key => :c_loadavg,         :label => "LAVG",     :size => nil},
+            # {:key => :c_passenger_count, :label => "PSG",      :size => nil},
+            {:key => :c_nginx_count,     :label => "NGX",      :size => nil},
+            {:key => :c_unicorn_count,   :label => "UNC",      :size => nil},
+            {:key => :c_resque_count,    :label => "RSQ",      :size => nil},
+            {:key => :c_redis_count,     :label => "RDS",      :size => nil},
+            {:key => :c_memcached_count, :label => "MEC",      :size => nil},
+          ]
+        }
+      end
+    end
+  end
+
+  class UrlTask < Task
+    def execute
+      items = @base.urls
+      rows = items.enum_for(:each_with_index).collect{|item, index|
+        @base.quiet{print "#{items.size - index} "}
+        @base.int_block{Agent::UrlAgent.new(@base, item).result}
+      }.compact
+      if rows.present?
+        @base.quiet{puts}
+        puts RainTable.generate(rows){|options|
+          options[:select] = [
+            {:key => :c_desc,             :label => "用途",     :size => nil},
+            {:key => :c_url,              :label => "URL",      :size => nil},
+            {:key => :c_status,           :label => "状態",     :size => 6},
+            {:key => :c_revision,         :label => "Rev",      :size => 7},
+            {:key => :c_updated_at_s,     :label => "最終",     :size => 18},
+            {:key => :c_commiter,         :label => "書人",     :size => 4},
+            {:key => :c_before_days,      :label => "経過",     :size => nil},
+            {:key => :c_pending_count,    :label => "PE",       :size => nil},
+            {:key => :c_site_title,       :label => "タイトル", :size => 8},
+            # {:key => :c_x_runtime,        :label => "x-rt",     :size => 4},
+            {:key => :c_response_time,    :label => "反応",     :size => nil},
+            # {:key => :c_server,           :label => "鯖面",     :size => 4},
+          ]
+        }
+      end
+    end
+  end
+
+  class ListTask < Task
+    def execute
+      pp @base.servers
+      @base.urls.each{|info|
+        puts "■#{info[:desc]}"
+        puts "#{info[:url]}"
+      }
     end
   end
 end
