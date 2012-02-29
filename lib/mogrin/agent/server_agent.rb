@@ -1,3 +1,7 @@
+if $0 == __FILE__
+  require "../../mogrin"
+end
+
 module Mogrin
   module Agent
     class ServerAgent < Base
@@ -18,54 +22,52 @@ module Mogrin
 
       def c_name2ip
         Resolv.getaddresses(c_host).flatten.join(" ")
-      rescue => error
-        error
       end
 
       def c_ip2name
         Resolv.getname(Resolv.getaddresses(c_host).first)
-      rescue => error
-        error
       end
 
       def c_inside_hostname
         remote_run("hostname")
       end
 
+      # ["16:41", "up", "4", "days,", "14:40,", "4", "users,", "load", "averages:", "0.89", "0.62", "0.58"]
+      #                                                                                     ^^^^^^
       def c_loadavg
-        remote_run("uptime"){|str|
-          # ["16:41", "up", "4", "days,", "14:40,", "4", "users,", "load", "averages:", "0.89", "0.62", "0.58"]
-          #                                                                                     ^^^^^^
-          str.split(/[,\s]+/)[-2]
-        }
+        remote_run("uptime").split(/[,\s]+/)[-2]
       end
 
       def c_passenger_count
-        process_count_for("passenger")
+        process_count("passenger")
       end
 
       def c_nginx_count
-        process_count_for("nginx")
+        process_count("nginx")
       end
 
       def c_unicorn_count
-        process_count_for("unicorn")
+        process_count("unicorn")
       end
 
       def c_resque_count
-        process_count_for("resque")
+        process_count("resque")
       end
 
       def c_memcached_count
-        process_count_for("memcached")
+        process_count("memcached")
       end
 
       def c_redis_count
-        process_count_for("redis")
+        process_count("redis")
       end
 
-      def process_count_for(name)
-        remote_run("ps aux | grep -i #{name} | grep -v grep").lines.count
+      def process_count(name)
+        process_pids(name).size
+      end
+
+      def process_pids(name)
+        remote_run("ps aux | grep -i #{name} | grep -v grep | awk '{ $2 }'").squish
       end
 
       def ssh_server
@@ -79,21 +81,17 @@ module Mogrin
       end
 
       def remote_run(command)
-        begin
-          str = Timeout.timeout(@base.config[:timeout]) do
-            @base.command_run(%(ssh #{ssh_server} "#{command}"))
-          end
-
-          if block_given?
-            yield str
-          else
-            str
-          end
-        rescue => error
-          @base.logger_puts("ERROR: #{error.inspect}")
-          error
-        end
+        @base.command_run(%(ssh #{ssh_server} "#{command}"))
       end
     end
+  end
+end
+
+if $0 == __FILE__
+  base = Mogrin::Core.new
+  obj = Mogrin::Agent::ServerAgent.new(base, :host => "localhost")
+  obj.instance_eval do
+    p remote_run("hostname")
+    p result
   end
 end

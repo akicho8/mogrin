@@ -19,8 +19,8 @@ module Mogrin
       ".mogrin.rb",
     ]
 
-    def self.run(*args)
-      new(*args).run
+    def self.run(*args, &block)
+      new(*args, &block).run
     end
 
     def self.conf_find(basename)
@@ -56,14 +56,14 @@ module Mogrin
       }
     end
 
-    attr_accessor :config
+    attr_accessor :config, :args
     attr_reader :signal_interrupt
 
     def initialize(args = [], config = {}, &block)
       @args = args
       @config = self.class.default_config.merge(config)
       if block
-        yield @config
+        yield self
       end
     end
 
@@ -159,13 +159,13 @@ module Mogrin
     end
 
     def command_run(command)
-      logger_puts("RUN: #{command}")
+      logger_puts "command_run: #{command}"
       stdout, stderr = Open3.popen3(command){|stdin, stdout, stderr|[stdout.read.strip, stderr.read.strip]}
       if stdout.present?
-        logger_puts("STDOUT: #{stdout.inspect}")
+        logger_puts "  stdout: #{stdout.inspect}"
       end
       if stderr.present?
-        logger_puts("ERROR: #{stderr.inspect}")
+        logger_puts "  stderr: #{stderr.inspect}"
       end
       stdout
     end
@@ -210,9 +210,9 @@ module Mogrin
             {:key => :c_desc,            :label => "用途",     :size => nil},
             {:key => :c_host,            :label => "鯖名",     :size => nil},
             {:key => :c_name2ip,         :label => "正引き",   :size => nil},
-            {:key => :c_ip2name,         :label => "逆引き",   :size => 20},
+            {:key => :c_ip2name,         :label => "逆引き",   :size => 12},
             {:key => :c_inside_hostname, :label => "内側HN",   :size => nil},
-            {:key => :c_loadavg,         :label => "LAVG",     :size => nil},
+            {:key => :c_loadavg,         :label => "AVG",      :size => nil},
             # {:key => :c_passenger_count, :label => "PSG",      :size => nil},
             {:key => :c_nginx_count,     :label => "NGX",      :size => nil},
             {:key => :c_unicorn_count,   :label => "UNC",      :size => nil},
@@ -239,10 +239,10 @@ module Mogrin
             {:key => :c_desc,             :label => "用途",     :size => nil},
             {:key => :c_url,              :label => "URL",      :size => nil},
             {:key => :c_status,           :label => "状態",     :size => 6},
-            {:key => :c_revision,         :label => "Rev",      :size => 7},
+            {:key => :c_revision,         :label => "Rev",      :size => 4},
             {:key => :c_updated_at_s,     :label => "最終",     :size => 18},
             {:key => :c_commiter,         :label => "書人",     :size => 4},
-            {:key => :c_before_days,      :label => "経過",     :size => nil},
+            {:key => :c_before_days,      :label => "古",       :size => nil},
             {:key => :c_pending_count,    :label => "PE",       :size => nil},
             {:key => :c_site_title,       :label => "タイトル", :size => 8},
             # {:key => :c_x_runtime,        :label => "x-rt",     :size => 4},
@@ -266,5 +266,19 @@ module Mogrin
 end
 
 if $0 == __FILE__
-  Mogrin::Core.run
+  Mogrin::Core.run{|obj|
+    obj.args << "url"
+    obj.config[:skip_config] = true
+    obj.config[:debug] = true
+    obj.config[:urls] = [
+      {:url => "http://www.nicovideo.jp/"},
+    ]
+
+    obj.args = ["server"]
+    obj.config[:skip_config] = true
+    obj.config[:debug] = true
+    obj.config[:servers] = [
+      {:host => "localhost"},
+    ]
+  }
 end

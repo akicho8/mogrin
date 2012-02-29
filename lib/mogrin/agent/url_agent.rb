@@ -1,21 +1,25 @@
 # -*- coding: utf-8 -*-
+
+if $0 == __FILE__
+  require "../../mogrin"
+end
+
+require "httparty"
+
 module Mogrin
   module Agent
     class UrlAgent < Base
       def initialize(base, url_info)
         super(base)
         @url_info = url_info
-        @meta = {}
       end
 
       def result
         begin
           Timeout.timeout(@base.config[:timeout]) do
             @response_time = Benchmark.realtime do
-              open(c_url, site_options){|f|
-                @meta = f.meta
-                @content = f.read
-              }
+              @response = HTTParty.get(c_url, site_options)
+              @base.logger_puts("headers: #{@response.headers}")
             end
           end
         rescue => @error
@@ -27,11 +31,13 @@ module Mogrin
       private
 
       def c_x_runtime
-        meta("x-runtime")
+        if @response
+          @response.headers["x-runtime"]
+        end
       end
 
       def site_options
-        @url_info[:options] || {}
+        {:follow_redirects => false}.merge(@url_info[:options] || {})
       end
 
       def c_response_time
@@ -57,33 +63,14 @@ module Mogrin
       end
 
       def c_status
-        if @error
-          # if @error.message.match(/^redirection/)
-          #   "リダイレクト"
-          # else
-          @error.message
-        else
-          @meta["status"]
-        end
-      end
-
-      def session_key
-        if @meta["set-cookie"]
-          @meta["set-cookie"].slice(/\A\w+/)
-        end
-      end
-
-      def c_server
-        @meta["server"]
-      end
-
-      def meta(key)
-        @meta[key.to_s]
+        @response.code
       end
 
       def c_site_title
-        if md = @content.to_s.match(%r!<title>(?<site_title>.*?)</title>!im)
-          md[:site_title]
+        if @response
+          if md = @response.body.to_s.match(%r!<title>(?<site_title>.*?)</title>!im)
+            md[:site_title]
+          end
         end
       end
 
@@ -93,18 +80,11 @@ module Mogrin
         def c_revision
           # return "cc2a41342eb55087b06567184f4879cbed00f1f5"
           unless @revision
-            str = nil
-            begin
-              str = Timeout.timeout(@base.config[:timeout]) do
-                open(revision_url, site_options){|f|
-                  f.read
-                }
+            if @response
+              r = HTTParty.get(revision_url, site_options)
+              if r.code == 200 && md = r.body.to_s.strip.match(/\A(?<revision>[a-z\d]+)/)
+                @revision = md[:revision]
               end
-            rescue => error
-              @base.logger_puts("ERROR: #{error}")
-            end
-            if str && md = str.strip.match(/\A(?<revision>[a-z\d]+)/)
-              @revision = md[:revision]
             end
           end
           @revision
@@ -121,13 +101,13 @@ module Mogrin
 
         def c_commiter
           if c_revision
-            @base.command_run("git log --pretty='%cn' #{c_revision}^..#{c_revision}")
+            @base.command_run("git show -s --format=%cn #{c_revision}")
           end
         end
 
         def c_pending_count
           if c_revision
-            @base.command_run("git log --oneline #{c_revision}..").lines.count
+            @base.command_run("git log --oneline #{c_revision}..").force_encoding("UTF-8").lines.count
           end
         end
 
@@ -140,7 +120,7 @@ module Mogrin
         def updated_at
           unless @updated_at
             if c_revision
-              str = @base.command_run("git log --pretty='%cd' #{c_revision}^..#{c_revision}")
+              str = @base.command_run("git show -s --format=%ci #{c_revision}")
               if str.present?
                 @updated_at = Time.parse(str)
               end
@@ -150,20 +130,34 @@ module Mogrin
         end
 
         def c_before_days
-          if updated_at
-            minutes = (Time.current.to_i - updated_at.to_i) / 60.0
-            if minutes < 60
-              "%dm" % minutes
-            elsif minutes < 60 * 24
-              "%.1fh" % (minutes / 60)
-            else
-              "%.1fd" % (minutes / 60 / 24)
-            end
+          if c_revision
+            str = @base.command_run("git show -s --format=%cr #{c_revision}")
+            str = str.gsub(/\b(ago)\b/, "")      # "2 hours ago" => "2 hours"
+            str = str.gsub(/([a-z])\w+/, '\1')   # "2 hours"     => "2 h"
+            str = str.gsub(/\s+/, "")            # "2 h"         => "2h"
           end
+          # if updated_at
+          #   minutes = (Time.current.to_i - updated_at.to_i) / 60.0
+          #   if minutes < 60
+          #     "%dm" % minutes
+          #   elsif minutes < 60 * 24
+          #     "%.1fh" % (minutes / 60)
+          #   else
+          #     "%.1fd" % (minutes / 60 / 24)
+          #   end
+          # end
         end
       end
 
       include RevisionMethods
     end
+  end
+end
+
+if $0 == __FILE__
+  base = Mogrin::Core.new
+  obj = Mogrin::Agent::UrlAgent.new(base, :url => ARGV.first)
+  obj.instance_eval do
+    p result
   end
 end

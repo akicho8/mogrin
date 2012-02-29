@@ -1,4 +1,4 @@
-require_relative "mogrin/mogrin"
+require_relative "mogrin/core"
 
 module Mogrin
   VERSION = "0.1.0"

@@ -16,8 +16,8 @@ module Mogrin
           begin
             v = send(key)
           rescue => error
-            @base.logger_puts("#{key}: #{error.inspect}")
-            v = error.inspect
+            @base.logger_puts("#{key}: #{error.inspect} #{error.backtrace}")
+            v = "E"
           end
           h.merge(key => v)
         }
