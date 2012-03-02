@@ -98,7 +98,7 @@ module Mogrin
       end
 
       @args.each do |task|
-        "mogrin/#{task}_task".classify.safe_constantize.new(self).execute
+        "mogrin/#{task}_task".classify.constantize.new(self).execute
         if @signal_interrupt
           break
         end
