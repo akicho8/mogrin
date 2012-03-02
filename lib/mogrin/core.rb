@@ -53,6 +53,7 @@ module Mogrin
         :debug       => false,
         :quiet       => false,
         :skip_config => false,
+        :append_log  => false,
       }
     end
 
@@ -65,6 +66,7 @@ module Mogrin
       if block
         yield self
       end
+      @alog = []
     end
 
     def run
@@ -100,6 +102,10 @@ module Mogrin
         if @signal_interrupt
           break
         end
+      end
+
+      if @config[:append_log]
+        puts @alog
       end
     end
 
@@ -140,16 +146,25 @@ module Mogrin
       end
     end
 
-    def logger
-      if @config[:debug]
-        @logger ||= ActiveSupport::BufferedLogger.new(STDOUT)
-      end
-    end
+    # def logger
+    #   if @config[:debug]
+    #     @logger ||= ActiveSupport::BufferedLogger.new(STDOUT)
+    #   end
+    # end
 
     def logger_puts(str)
-      if logger
-        logger.info(str)
+      if @config[:debug]
+        if @config[:append_log]
+          @alog << str.scan(/./).first(256).join
+        else
+          # logger.info(str.scan(/./).first(256).join)
+          puts str.scan(/./).first(256).join
+        end
       end
+
+      # if logger
+      #   # logger.info(str.scan(/./).first(256).join)
+      # end
     end
 
     def quiet
@@ -161,11 +176,13 @@ module Mogrin
     def command_run(command)
       logger_puts "command_run: #{command}"
       stdout, stderr = Open3.popen3(command){|stdin, stdout, stderr|[stdout.read.strip, stderr.read.strip]}
+      stdout.encode!("utf-8", :invalid => :replace)
+      stderr.encode!("utf-8", :invalid => :replace)
       if stdout.present?
-        logger_puts "  stdout: #{stdout.inspect}"
+        logger_puts "     stdout: #{stdout.inspect}"
       end
       if stderr.present?
-        logger_puts "  stderr: #{stderr.inspect}"
+        logger_puts "     stderr: #{stderr.inspect}"
       end
       stdout
     end
@@ -266,9 +283,13 @@ module Mogrin
 end
 
 if $0 == __FILE__
+  p "あ".encode
+  p Encoding.default_internal
+
   Mogrin::Core.run{|obj|
     obj.args << "url"
     obj.config[:skip_config] = true
+    obj.config[:append_log] = true
     obj.config[:debug] = true
     obj.config[:urls] = [
       {:url => "http://www.nicovideo.jp/"},

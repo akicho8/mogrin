@@ -67,7 +67,7 @@ module Mogrin
       end
 
       def process_pids(name)
-        remote_run("ps aux | grep -i #{name} | grep -v grep | awk '{ $2 }'").squish
+        remote_run("ps aux | grep -i #{name} | grep -v grep | awk '{ print \\$2 }'").scan(/\d+/)
       end
 
       def ssh_server
@@ -81,6 +81,8 @@ module Mogrin
       end
 
       def remote_run(command)
+        ENV["SSH_AUTH_SOCK"] ||= `ls /tmp/launch-*/Listeners`.strip
+        @base.logger_puts "SSH_AUTH_SOCK: #{ENV['SSH_AUTH_SOCK']}"
         @base.command_run(%(ssh #{ssh_server} "#{command}"))
       end
     end
@@ -91,6 +93,8 @@ if $0 == __FILE__
   base = Mogrin::Core.new
   obj = Mogrin::Agent::ServerAgent.new(base, :host => "localhost")
   obj.instance_eval do
+    ENV["SSH_AUTH_SOCK"] = nil
+    # ENV["SSH_AUTH_SOCK"] = `ls /tmp/launch-*/Listeners`.strip
     p remote_run("hostname")
     p result
   end

@@ -12,4 +12,7 @@ Gem::Specification.new do |spec|
   spec.executables = ["mog"]
   spec.platform = Gem::Platform::RUBY
   spec.add_dependency("activesupport")
+  spec.add_dependency("httparty")
+  spec.add_dependency("tapp")
+  spec.add_dependency("rspec-core")
 end
