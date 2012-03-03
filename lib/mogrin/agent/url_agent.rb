@@ -14,23 +14,22 @@ module Mogrin
         @url_info = url_info
       end
 
-      def result
+      def run
         begin
           Timeout.timeout(@base.config[:timeout]) do
             @response_time = Benchmark.realtime do
-              @response = HTTParty.get(c_url, site_options)
+              @response = HTTParty.get(s_url, site_options)
               @base.logger_puts("headers: #{@response.headers}")
             end
           end
         rescue => @error
           @base.logger_puts("ERROR: #{@error}")
         end
-        super
       end
 
       private
 
-      def c_x_runtime
+      def s_x_runtime
         if @response
           @response.headers["x-runtime"]
         end
@@ -40,33 +39,35 @@ module Mogrin
         {:follow_redirects => false}.merge(@url_info[:options] || {})
       end
 
-      def c_response_time
+      def s_response_time
         if @response_time
           "%.2f" % @response_time
         end
       end
 
-      def c_desc
+      def s_desc
         @url_info[:desc]
       end
 
-      def c_url
+      def s_url
         URI(@url_info[:url]).normalize.to_s
       end
 
       def url_with_basic_auth
         if @url_info[:options] && @url_info[:options][:http_basic_authentication]
-          c_url.gsub(%r{\A(\w+://)}){|str|str + "%s:%s@" % @url_info[:options][:http_basic_authentication]}
+          s_url.gsub(%r{\A(\w+://)}){|str|str + "%s:%s@" % @url_info[:options][:http_basic_authentication]}
         else
-          c_url
+          s_url
         end
       end
 
-      def c_status
-        @response.code
+      def s_status
+        if @response
+          @response.code
+        end
       end
 
-      def c_site_title
+      def s_site_title
         if @response
           if md = @response.body.to_s.match(%r!<title>(?<site_title>.*?)</title>!im)
             md[:site_title]
@@ -77,7 +78,7 @@ module Mogrin
       module RevisionMethods
         private
 
-        def c_revision
+        def s_revision
           # return "cc2a41342eb55087b06567184f4879cbed00f1f5"
           unless @revision
             if @response
@@ -91,7 +92,7 @@ module Mogrin
         end
 
         def site_top
-          ui = URI.parse(c_url)
+          ui = URI.parse(s_url)
           "#{ui.scheme}://#{ui.host}"
         end
 
@@ -99,19 +100,19 @@ module Mogrin
           "#{site_top}/revision"
         end
 
-        def c_commiter
-          if c_revision
-            @base.command_run("git show -s --format=%cn #{c_revision}")
+        def t_commiter
+          if s_revision
+            @base.command_run("git show -s --format=%cn #{s_revision}")
           end
         end
 
-        def c_pending_count
-          if c_revision
-            @base.command_run("git log --oneline #{c_revision}..").force_encoding("UTF-8").lines.count
+        def t_pending_count
+          if s_revision
+            @base.command_run("git log --oneline #{s_revision}..").force_encoding("UTF-8").lines.count
           end
         end
 
-        def c_updated_at_s
+        def s_updated_at_s
           if updated_at
             updated_at.strftime("%m-%d %H:%M")
           end
@@ -119,8 +120,8 @@ module Mogrin
 
         def updated_at
           unless @updated_at
-            if c_revision
-              str = @base.command_run("git show -s --format=%ci #{c_revision}")
+            if s_revision
+              str = @base.command_run("git show -s --format=%ci #{s_revision}")
               if str.present?
                 @updated_at = Time.parse(str)
               end
@@ -129,9 +130,9 @@ module Mogrin
           @updated_at
         end
 
-        def c_before_days
-          if c_revision
-            str = @base.command_run("git show -s --format=%cr #{c_revision}")
+        def t_before_days
+          if s_revision
+            str = @base.command_run("git show -s --format=%cr #{s_revision}")
             str = str.gsub(/\b(ago)\b/, "")      # "2 hours ago" => "2 hours"
             str = str.gsub(/([a-z])\w+/, '\1')   # "2 hours"     => "2 h"
             str = str.gsub(/\s+/, "")            # "2 h"         => "2h"

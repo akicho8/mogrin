@@ -21,6 +21,7 @@ module Mogrin
         oparser.on("    url     URLのチェック")
         oparser.on("    list    監視対象の確認")
         oparser.on("オプション")
+        oparser.on("-1", "--[no-]single", "シングルスレッドモード(#{config[:single]})") {|v|config[:single] = v}
         oparser.on("-t", "--timeout=Float", "タイムアウト(#{config[:timeout]})", Float) {|v|config[:timeout] = v}
         oparser.on("-f", "--file=FILE", "読み込むファイルを指定", String) {|v|config[:file] = v}
         oparser.on("-q", "--quiet", "静かにする(#{config[:quiet]})"){|v|config[:quiet] = v}

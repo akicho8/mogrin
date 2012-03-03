@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 if $0 == __FILE__
   require "../../mogrin"
 end
@@ -12,78 +13,105 @@ module Mogrin
 
       private
 
-      def c_desc
+      def s_desc
         @server_info[:desc]
       end
 
-      def c_host
+      def s_host
         @server_info[:host]
       end
 
-      def c_name2ip
-        Resolv.getaddresses(c_host).flatten.join(" ")
+      def t_name2ip
+        Resolv.getaddresses(s_host).flatten.join(" ")
       end
 
-      def c_ip2name
-        Resolv.getname(Resolv.getaddresses(c_host).first)
+      def t_ip2name
+        Resolv.getname(Resolv.getaddresses(s_host).first)
       end
 
-      def c_inside_hostname
+      def t_inside_hostname
         remote_run("hostname")
       end
 
       # ["16:41", "up", "4", "days,", "14:40,", "4", "users,", "load", "averages:", "0.89", "0.62", "0.58"]
       #                                                                                     ^^^^^^
-      def c_loadavg
-        remote_run("uptime").split(/[,\s]+/)[-2]
+      def t_loadavg
+        if s = remote_run("uptime")
+          s.split(/[,\s]+/)[-2]
+        end
       end
 
-      def c_passenger_count
+      def t_passenger_count
         process_count("passenger")
       end
 
-      def c_nginx_count
+      def t_nginx_count
         process_count("nginx")
       end
 
-      def c_unicorn_count
+      def t_unicorn_count
         process_count("unicorn")
       end
 
-      def c_resque_count
+      def t_resque_count
         process_count("resque")
       end
 
-      def c_memcached_count
+      def t_memcached_count
         process_count("memcached")
       end
 
-      def c_redis_count
+      def t_redis_count
         process_count("redis")
       end
 
+      def t_sleep
+        # `sleep 2; date`
+      end
+
+      def ssh_login_canable?
+        if @ssh_login_canable.nil?
+          @ssh_login_canable = !!remote_run("hostname")
+        end
+        @ssh_login_canable
+      end
+
       def process_count(name)
-        process_pids(name).size
+        if ssh_login_canable?
+          process_pids(name).size
+        end
       end
 
       def process_pids(name)
-        remote_run("ps aux | grep -i #{name} | grep -v grep | awk '{ print \\$2 }'").scan(/\d+/)
+        if t_inside_hostname
+          remote_run("ps aux | grep -i #{name} | grep -v grep | awk '{ print \\$2 }'").to_s.scan(/\d+/)
+        end
       end
 
       def ssh_server
         if @server_info[:ssh]
           @server_info[:ssh]
         elsif @server_info[:user]
-          [@server_info[:user], c_host].join("@")
+          [@server_info[:user], s_host].join("@")
         else
-          c_host
+          s_host
         end
       end
 
       def remote_run(command)
-        ENV["SSH_AUTH_SOCK"] ||= `ls /tmp/launch-*/Listeners`.strip
-        @base.logger_puts "SSH_AUTH_SOCK: #{ENV['SSH_AUTH_SOCK']}"
+        ssh_auth_sock_set
         @base.command_run(%(ssh #{ssh_server} "#{command}"))
+      end
+
+      def ssh_auth_sock_set
+        unless ENV["SSH_AUTH_SOCK"]
+          sock = `ls /tmp/launch-*/Listeners`.strip
+          if sock.empty?
+            raise ArgumentError, "SSHのソケットが見つかりません"
+          end
+          ENV["SSH_AUTH_SOCK"] = sock
+          @base.logger_puts "SSH_AUTH_SOCK: #{sock}"
+        end
       end
     end
   end
@@ -93,9 +121,9 @@ if $0 == __FILE__
   base = Mogrin::Core.new
   obj = Mogrin::Agent::ServerAgent.new(base, :host => "localhost")
   obj.instance_eval do
-    ENV["SSH_AUTH_SOCK"] = nil
-    # ENV["SSH_AUTH_SOCK"] = `ls /tmp/launch-*/Listeners`.strip
-    p remote_run("hostname")
+    # ENV["SSH_AUTH_SOCK"] = nil
+    # # ENV["SSH_AUTH_SOCK"] = `ls /tmp/launch-*/Listeners`.strip
+    # p remote_run("hostname")
     p result
   end
 end

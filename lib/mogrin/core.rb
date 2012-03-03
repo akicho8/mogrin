@@ -49,11 +49,12 @@ module Mogrin
 
     def self.default_config
       {
-        :timeout     => 3.0,
+        :timeout     => 8.0,
         :debug       => false,
         :quiet       => false,
         :skip_config => false,
         :append_log  => false,
+        :single      => false,
       }
     end
 
@@ -70,12 +71,14 @@ module Mogrin
     end
 
     def run
+      quiet{puts "#{File.basename($0)} #{VERSION}"}
+
       CONF_FILES.each{|conf_file|
         if f = self.class.conf_find(conf_file)
           if @config[:skip_config]
             quiet{puts "Skip: #{f}"}
           else
-            quiet{puts "AutoLoad: #{f}"}
+            quiet{puts "デフォルト設定の読み込み: #{f}"}
             instance_eval(f.read)
           end
         end
@@ -83,7 +86,7 @@ module Mogrin
 
       if f = @config[:file]
         f = Pathname(f)
-        quiet{puts "DirectLoad: #{f}"}
+        quiet{puts "指定ファイルの読み込み: #{f}"}
         eval(f.read, binding)
       end
 
@@ -153,12 +156,12 @@ module Mogrin
     # end
 
     def logger_puts(str)
+      str = str.to_s.scan(/./).first(256).compact.join
       if @config[:debug]
         if @config[:append_log]
-          @alog << str.scan(/./).first(256).join
+          @alog << str
         else
-          # logger.info(str.scan(/./).first(256).join)
-          puts str.scan(/./).first(256).join
+          puts str
         end
       end
 
@@ -184,7 +187,7 @@ module Mogrin
       if stderr.present?
         logger_puts "     stderr: #{stderr.inspect}"
       end
-      stdout
+      stdout.presence
     end
 
     def int_block(&block)
@@ -197,7 +200,7 @@ module Mogrin
           t.kill
           return
         end
-        sleep(0.1)
+        sleep(0.001)
       end
       t.value
     end
@@ -224,18 +227,19 @@ module Mogrin
         @base.quiet{puts}
         puts RainTable.generate(rows){|options|
           options[:select] = [
-            {:key => :c_desc,            :label => "用途",     :size => nil},
-            {:key => :c_host,            :label => "鯖名",     :size => nil},
-            {:key => :c_name2ip,         :label => "正引き",   :size => nil},
-            {:key => :c_ip2name,         :label => "逆引き",   :size => 12},
-            {:key => :c_inside_hostname, :label => "内側HN",   :size => nil},
-            {:key => :c_loadavg,         :label => "AVG",      :size => nil},
-            # {:key => :c_passenger_count, :label => "PSG",      :size => nil},
-            {:key => :c_nginx_count,     :label => "NGX",      :size => nil},
-            {:key => :c_unicorn_count,   :label => "UNC",      :size => nil},
-            {:key => :c_resque_count,    :label => "RSQ",      :size => nil},
-            {:key => :c_redis_count,     :label => "RDS",      :size => nil},
-            {:key => :c_memcached_count, :label => "MEC",      :size => nil},
+            {:key => :s_desc,            :label => "用途",     :size => nil},
+            {:key => :s_host,            :label => "鯖名",     :size => nil},
+            {:key => :t_name2ip,         :label => "正引き",   :size => nil},
+            {:key => :t_ip2name,         :label => "逆引き",   :size => 12},
+            {:key => :t_inside_hostname, :label => "内側HN",   :size => nil},
+            {:key => :t_loadavg,         :label => "AVG",      :size => nil},
+            # {:key => :t_passenger_count, :label => "PSG",      :size => nil},
+            {:key => :t_nginx_count,     :label => "NGX",      :size => nil},
+            {:key => :t_unicorn_count,   :label => "UNC",      :size => nil},
+            {:key => :t_resque_count,    :label => "RSQ",      :size => nil},
+            {:key => :t_redis_count,     :label => "RDS",      :size => nil},
+            {:key => :t_memcached_count, :label => "MEC",      :size => nil},
+            # {:key => :t_sleep,           :label => "SLEEP",    :size => nil},
           ]
         }
       end
@@ -253,18 +257,18 @@ module Mogrin
         @base.quiet{puts}
         puts RainTable.generate(rows){|options|
           options[:select] = [
-            {:key => :c_desc,             :label => "用途",     :size => nil},
-            {:key => :c_url,              :label => "URL",      :size => nil},
-            {:key => :c_status,           :label => "状態",     :size => 6},
-            {:key => :c_revision,         :label => "Rev",      :size => 4},
-            {:key => :c_updated_at_s,     :label => "最終",     :size => 18},
-            {:key => :c_commiter,         :label => "書人",     :size => 4},
-            {:key => :c_before_days,      :label => "古",       :size => nil},
-            {:key => :c_pending_count,    :label => "PE",       :size => nil},
-            {:key => :c_site_title,       :label => "タイトル", :size => 8},
-            # {:key => :c_x_runtime,        :label => "x-rt",     :size => 4},
-            {:key => :c_response_time,    :label => "反応",     :size => nil},
-            # {:key => :c_server,           :label => "鯖面",     :size => 4},
+            {:key => :s_desc,             :label => "用途",     :size => nil},
+            {:key => :s_url,              :label => "URL",      :size => nil},
+            {:key => :s_status,           :label => "状態",     :size => 6},
+            {:key => :s_revision,         :label => "Rev",      :size => 4},
+            {:key => :s_updated_at_s,     :label => "最終",     :size => 18},
+            {:key => :t_commiter,         :label => "書人",     :size => 4},
+            {:key => :t_before_days,      :label => "古",       :size => nil},
+            {:key => :t_pending_count,    :label => "PE",       :size => nil},
+            {:key => :s_site_title,       :label => "タイトル", :size => 8},
+            # {:key => :s_x_runtime,        :label => "x-rt",     :size => 4},
+            {:key => :s_response_time,    :label => "反応",     :size => nil},
+            # {:key => :s_server,           :label => "鯖面",     :size => 4},
           ]
         }
       end
