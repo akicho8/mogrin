@@ -22,11 +22,13 @@ module Mogrin
       end
 
       def t_name2ip
-        Resolv.getaddresses(s_host).flatten.join(" ")
+        @t_name2ip ||= Resolv.getaddress(s_host)
       end
 
       def t_ip2name
-        Resolv.getname(Resolv.getaddresses(s_host).first)
+        if t_name2ip
+          Resolv.getname(t_name2ip)
+        end
       end
 
       def t_inside_hostname
@@ -57,6 +59,10 @@ module Mogrin
         process_count("resque")
       end
 
+      def t_resque_count2
+        process_count("resque.*waiting.*for")
+      end
+
       def t_memcached_count
         process_count("memcached")
       end
@@ -78,13 +84,15 @@ module Mogrin
 
       def process_count(name)
         if ssh_login_canable?
-          process_pids(name).size
+          if pids = process_pids(name)
+            pids.size
+          end
         end
       end
 
       def process_pids(name)
         if t_inside_hostname
-          remote_run("ps aux | grep -i #{name} | grep -v grep | awk '{ print \\$2 }'").to_s.scan(/\d+/)
+          remote_run("ps aux | grep -i '#{name}' | grep -v grep | awk '{ print \\$2 }'").to_s.scan(/\d+/)
         end
       end
 

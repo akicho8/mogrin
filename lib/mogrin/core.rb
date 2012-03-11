@@ -8,6 +8,7 @@ require "open3"
 require "tapp"
 
 require_relative "agent"
+require_relative "version"
 
 module Mogrin
   class Core
@@ -49,12 +50,12 @@ module Mogrin
 
     def self.default_config
       {
-        :timeout     => 8.0,
+        :timeout     => 16.0,
         :debug       => false,
         :quiet       => false,
         :skip_config => false,
         :append_log  => false,
-        :single      => false,
+        :single      => true,
       }
     end
 
@@ -78,7 +79,7 @@ module Mogrin
           if @config[:skip_config]
             quiet{puts "Skip: #{f}"}
           else
-            quiet{puts "デフォルト設定の読み込み: #{f}"}
+            quiet{puts "Load: #{f}"}
             instance_eval(f.read)
           end
         end
@@ -86,7 +87,7 @@ module Mogrin
 
       if f = @config[:file]
         f = Pathname(f)
-        quiet{puts "指定ファイルの読み込み: #{f}"}
+        quiet{puts "Load: #{f}"}
         eval(f.read, binding)
       end
 
@@ -96,8 +97,10 @@ module Mogrin
       end
 
       Signal.trap(:INT) do
-        @signal_interrupt = true
-        puts "[BREAK]"
+        unless @signal_interrupt
+          @signal_interrupt = true
+          puts "[BREAK]"
+        end
       end
 
       @args.each do |task|
@@ -149,12 +152,6 @@ module Mogrin
       end
     end
 
-    # def logger
-    #   if @config[:debug]
-    #     @logger ||= ActiveSupport::BufferedLogger.new(STDOUT)
-    #   end
-    # end
-
     def logger_puts(str)
       str = str.to_s.scan(/./).first(256).compact.join
       if @config[:debug]
@@ -164,10 +161,6 @@ module Mogrin
           puts str
         end
       end
-
-      # if logger
-      #   # logger.info(str.scan(/./).first(256).join)
-      # end
     end
 
     def quiet
@@ -182,10 +175,10 @@ module Mogrin
       stdout.encode!("utf-8", :invalid => :replace)
       stderr.encode!("utf-8", :invalid => :replace)
       if stdout.present?
-        logger_puts "     stdout: #{stdout.inspect}"
+        logger_puts "        out: #{stdout.inspect}"
       end
       if stderr.present?
-        logger_puts "     stderr: #{stderr.inspect}"
+        logger_puts "     err: #{stderr.inspect}"
       end
       stdout.presence
     end
@@ -214,15 +207,39 @@ module Mogrin
     def execute
       raise NotImplementedError, "#{__method__} is not implemented"
     end
+
+    private
+
+    def agent_execute(klass, items)
+      if @base.config[:single]
+        items.each.with_index.collect{|item, index|
+          @base.quiet{print "#{items.size - index} "}
+          @base.int_block{klass.new(@base, item).result}
+        }.compact
+      else
+        threads = items.each.with_index.collect{|item, index|
+          @base.quiet{print "#{items.size - index} "}
+          Thread.start{klass.new(@base, item).result}
+        }.compact
+        loop do
+          if threads.none?{|t|t.alive?}
+            break
+          end
+          if @base.signal_interrupt
+            break
+          end
+          sleep 0.001
+        end
+        threads.each{|v|Thread.kill(v)}
+        threads.each{|v|v.join}
+        threads.collect(&:value).compact
+      end
+    end
   end
 
   class ServerTask < Task
     def execute
-      items = @base.servers
-      rows = items.enum_for(:each_with_index).collect{|item, index|
-        @base.quiet{print "#{items.size - index} "}
-        @base.int_block{Agent::ServerAgent.new(@base, item).result}
-      }.compact
+      rows = agent_execute(Agent::ServerAgent, @base.servers)
       if rows.present?
         @base.quiet{puts}
         puts RainTable.generate(rows){|options|
@@ -237,6 +254,7 @@ module Mogrin
             {:key => :t_nginx_count,     :label => "NGX",      :size => nil},
             {:key => :t_unicorn_count,   :label => "UNC",      :size => nil},
             {:key => :t_resque_count,    :label => "RSQ",      :size => nil},
+            {:key => :t_resque_count2,   :label => "RSW",      :size => nil},
             {:key => :t_redis_count,     :label => "RDS",      :size => nil},
             {:key => :t_memcached_count, :label => "MEC",      :size => nil},
             # {:key => :t_sleep,           :label => "SLEEP",    :size => nil},
@@ -248,26 +266,22 @@ module Mogrin
 
   class UrlTask < Task
     def execute
-      items = @base.urls
-      rows = items.enum_for(:each_with_index).collect{|item, index|
-        @base.quiet{print "#{items.size - index} "}
-        @base.int_block{Agent::UrlAgent.new(@base, item).result}
-      }.compact
+      rows = agent_execute(Agent::UrlAgent, @base.urls)
       if rows.present?
         @base.quiet{puts}
         puts RainTable.generate(rows){|options|
           options[:select] = [
-            {:key => :s_desc,             :label => "用途",     :size => nil},
+            {:key => :s_desc,             :label => "DESC",     :size => nil},
             {:key => :s_url,              :label => "URL",      :size => nil},
-            {:key => :s_status,           :label => "状態",     :size => 6},
-            {:key => :s_revision,         :label => "Rev",      :size => 4},
+            {:key => :s_status,           :label => "RET",      :size => 6},
+            {:key => :s_response_time,    :label => "反速",     :size => nil},
+            {:key => :s_site_title,       :label => "Title",    :size => 8},
+            {:key => :s_revision,         :label => "Ref",      :size => 7},
             {:key => :s_updated_at_s,     :label => "最終",     :size => 18},
             {:key => :t_commiter,         :label => "書人",     :size => 4},
-            {:key => :t_before_days,      :label => "古",       :size => nil},
-            {:key => :t_pending_count,    :label => "PE",       :size => nil},
-            {:key => :s_site_title,       :label => "タイトル", :size => 8},
+            {:key => :t_before_days,      :label => "過時",     :size => nil},
+            {:key => :t_pending_count,    :label => "PD",       :size => nil},
             # {:key => :s_x_runtime,        :label => "x-rt",     :size => 4},
-            {:key => :s_response_time,    :label => "反応",     :size => nil},
             # {:key => :s_server,           :label => "鯖面",     :size => 4},
           ]
         }
@@ -277,10 +291,14 @@ module Mogrin
 
   class ListTask < Task
     def execute
-      pp @base.servers
       @base.urls.each{|info|
         puts "■#{info[:desc]}"
         puts "#{info[:url]}"
+      }
+      puts
+      @base.servers.each{|info|
+        puts "■#{info[:desc]}"
+        puts "ssh #{info[:host]}"
       }
     end
   end

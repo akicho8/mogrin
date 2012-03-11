@@ -34,24 +34,19 @@ module Mogrin
       def thread_response(keys)
         threads = keys.inject({}){|h, key|
           h.merge(key => Thread.start{
-              @base.quiet{print "."}
-              v = method_run(key)
-              @base.quiet{print "."}
-              v
+              method_run(key)
             })
         }
-        @base.logger_puts(threads.pretty_inspect)
+        thread_status(threads)
 
         mark = nil
         begin
           Timeout::timeout(@base.config[:timeout]){
             loop do
               if threads.values.none?{|t|t.alive?}
-                # @base.quiet{print "[SUCCESS]"}
                 break
               end
               if @base.signal_interrupt
-                @base.quiet{print "[SIGNAL BREAK JOIN]"}
                 break
               end
               sleep 0.001
@@ -62,7 +57,7 @@ module Mogrin
           @base.quiet{print "[TIMEOUT] "}
           @base.logger_puts(error)
         end
-        @base.logger_puts(threads.pretty_inspect)
+        thread_status(threads)
 
         threads.values.each{|v|Thread.kill(v)}
         threads.values.each(&:join)
@@ -75,11 +70,17 @@ module Mogrin
       def method_run(key)
         begin
           v = send(key)
+          @base.quiet{print "."}
         rescue => error
           @base.logger_puts("#{key}: #{error.inspect} #{error.backtrace}")
-          v = "E"
+          @base.quiet{print "F"}
+          v = "F"
         end
         v
+      end
+
+      def thread_status(threads)
+        @base.logger_puts(threads.values.collect(&:status).pretty_inspect)
       end
     end
   end

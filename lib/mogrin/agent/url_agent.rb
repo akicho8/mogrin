@@ -16,14 +16,14 @@ module Mogrin
 
       def run
         begin
-          Timeout.timeout(@base.config[:timeout]) do
-            @response_time = Benchmark.realtime do
-              @response = HTTParty.get(s_url, site_options)
-              @base.logger_puts("headers: #{@response.headers}")
-            end
+          @response_time = Benchmark.realtime do
+            # FIXME: timeoutが効かない。存在しないドメインを叩くと30秒はフリーズする
+            @response = HTTParty.get(s_url, site_options)
           end
         rescue => @error
           @base.logger_puts("ERROR: #{@error}")
+        else
+          @base.logger_puts("headers: #{@response.headers.inspect}")
         end
       end
 
@@ -36,7 +36,10 @@ module Mogrin
       end
 
       def site_options
-        {:follow_redirects => false}.merge(@url_info[:options] || {})
+        {
+          :follow_redirects => false,
+          :timeout => @base.config[:timeout],
+        }.merge(@url_info[:options] || {})
       end
 
       def s_response_time
@@ -79,11 +82,10 @@ module Mogrin
         private
 
         def s_revision
-          # return "cc2a41342eb55087b06567184f4879cbed00f1f5"
           unless @revision
             if @response
               r = HTTParty.get(revision_url, site_options)
-              if r.code == 200 && md = r.body.to_s.strip.match(/\A(?<revision>[a-z\d]+)/)
+              if r.code == 200 && md = r.body.to_s.strip.match(/\A(?<revision>[a-z\d]{40})/i)
                 @revision = md[:revision]
               end
             end
@@ -108,7 +110,9 @@ module Mogrin
 
         def t_pending_count
           if s_revision
-            @base.command_run("git log --oneline #{s_revision}..").force_encoding("UTF-8").lines.count
+            if str = @base.command_run("git log --oneline #{s_revision}..")
+              str.force_encoding("UTF-8").lines.count
+            end
           end
         end
 
@@ -121,8 +125,7 @@ module Mogrin
         def updated_at
           unless @updated_at
             if s_revision
-              str = @base.command_run("git show -s --format=%ci #{s_revision}")
-              if str.present?
+              if str = @base.command_run("git show -s --format=%ci #{s_revision}")
                 @updated_at = Time.parse(str)
               end
             end
@@ -132,21 +135,12 @@ module Mogrin
 
         def t_before_days
           if s_revision
-            str = @base.command_run("git show -s --format=%cr #{s_revision}")
-            str = str.gsub(/\b(ago)\b/, "")      # "2 hours ago" => "2 hours"
-            str = str.gsub(/([a-z])\w+/, '\1')   # "2 hours"     => "2 h"
-            str = str.gsub(/\s+/, "")            # "2 h"         => "2h"
+            if str = @base.command_run("git show -s --format=%cr #{s_revision}")
+              str = str.gsub(/\b(ago)\b/, "")      # "2 hours ago" => "2 hours"
+              str = str.gsub(/([a-z])\w+/, '\1')   # "2 hours"     => "2 h"
+              str = str.gsub(/\s+/, "")            # "2 h"         => "2h"
+            end
           end
-          # if updated_at
-          #   minutes = (Time.current.to_i - updated_at.to_i) / 60.0
-          #   if minutes < 60
-          #     "%dm" % minutes
-          #   elsif minutes < 60 * 24
-          #     "%.1fh" % (minutes / 60)
-          #   else
-          #     "%.1fd" % (minutes / 60 / 24)
-          #   end
-          # end
         end
       end
 
