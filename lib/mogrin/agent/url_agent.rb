@@ -15,10 +15,11 @@ module Mogrin
       end
 
       def run
+        return if @base.config[:dry_run]
         begin
           @response_time = Benchmark.realtime do
             # FIXME: timeoutが効かない。存在しないドメインを叩くと30秒はフリーズする
-            @response = HTTParty.get(s_url, site_options)
+            @response = HTTParty.get(a_url, site_options)
           end
         rescue => @error
           @base.logger_puts("ERROR: #{@error}")
@@ -48,19 +49,19 @@ module Mogrin
         end
       end
 
-      def s_desc
+      def a_desc
         @url_info[:desc]
       end
 
-      def s_url
+      def a_url
         URI(@url_info[:url]).normalize.to_s
       end
 
       def url_with_basic_auth
         if @url_info[:options] && @url_info[:options][:http_basic_authentication]
-          s_url.gsub(%r{\A(\w+://)}){|str|str + "%s:%s@" % @url_info[:options][:http_basic_authentication]}
+          a_url.gsub(%r{\A(\w+://)}){|str|str + "%s:%s@" % @url_info[:options][:http_basic_authentication]}
         else
-          s_url
+          a_url
         end
       end
 
@@ -94,7 +95,7 @@ module Mogrin
         end
 
         def site_top
-          ui = URI.parse(s_url)
+          ui = URI.parse(a_url)
           "#{ui.scheme}://#{ui.host}"
         end
 

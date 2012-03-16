@@ -5,18 +5,26 @@
 ------
 
     $ mog --help
-    似非死活監視 mog 0.1.1
-    使い方: mog [オプション] [タスク...]
-    タスク
-        server  鯖のチェック
-        url     URL毎にチェック
-        list    監視対象の確認
-    オプション
-        -t, --timeout=Float              タイムアウト(3.0)
+    似非死活監視 mog 0.1.3
+    使い方: mog [オプション] [タスク or URL or ホスト名...]
+    タスク:
+        host  鯖のチェック
+        url   URLのチェック
+        list  監視対象の確認
+    オプション:
+        -n, --dry-run                    予行演習(false)
+        -m, --match=STRING               マッチしたもののみ
+        -s, --host=HOST                  ホストの指定
+        -u, --url=URL                    URLの指定
+        -t, --timeout=Float              タイムアウト(16.0)
+    レアオプション:
+        -x, --skip-config                デフォルトの設定ファイルを読み込まない(false)
         -f, --file=FILE                  読み込むファイルを指定
         -q, --quiet                      静かにする(false)
-        -x, --skip-config                設定ファイルを読み込まない(false)
-        -m, --match=STRING               マッチしたもののみ
+        -a, --append-log                 ログを結果の後につける(false)
+        -p, --[no-]parallel              スレッドモード(true)
+            --[no-]thread
+        -l, --local                      ローカルが対象(false)
         -d, --debug                      デバッグモード(false)
             --help                       このヘルプを表示する
 
@@ -26,7 +34,7 @@
     $ cat ~/.mogrin.rb
     # -*- coding: utf-8; mode: ruby -*-
 
-    config[:servers] = [
+    config[:hosts] = [
       {:desc => "メモ", :host => "memoria"},
       {:desc => "自分", :host => "localhost"},
     ]

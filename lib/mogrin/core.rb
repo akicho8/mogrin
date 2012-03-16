@@ -19,12 +19,13 @@ module Mogrin
       ".mogrin",
       ".mogrin.rb",
     ]
+    TASKS = [:url, :host, :list]
 
     def self.run(*args, &block)
       new(*args, &block).run
     end
 
-    def self.conf_find(basename)
+    def self.look_for_default_conf(basename)
       basename = Pathname(basename)
       file = nil
 
@@ -50,12 +51,17 @@ module Mogrin
 
     def self.default_config
       {
-        :timeout     => 16.0,
-        :debug       => false,
-        :quiet       => false,
-        :skip_config => false,
-        :append_log  => false,
-        :single      => true,
+        :timeout      => 16.0,
+        :debug        => false,
+        :quiet        => false,
+        :skip_config  => false,
+        :append_log   => false,
+        :single       => true,
+        :default_task => :url,
+        :url          => nil,
+        :host         => nil,
+        :local        => false,
+        :dry_run      => false,
       }
     end
 
@@ -75,7 +81,7 @@ module Mogrin
       quiet{puts "#{File.basename($0)} #{VERSION}"}
 
       CONF_FILES.each{|conf_file|
-        if f = self.class.conf_find(conf_file)
+        if f = self.class.look_for_default_conf(conf_file)
           if @config[:skip_config]
             quiet{puts "Skip: #{f}"}
           else
@@ -91,9 +97,26 @@ module Mogrin
         eval(f.read, binding)
       end
 
-      if @args.empty?
-        @args << "url"
-        @args << "server"
+      @tasks = @args
+
+      # 曖昧な引数を自動解釈する実験
+      if true
+        urls = @tasks.find_all{|arg|arg.match(/^h?ttps?:/)}
+        hosts = @tasks - urls - TASKS.collect(&:to_s)
+        @tasks -= urls + hosts
+        unless urls.empty?
+          @config[:url] = urls.join(",")
+          @tasks << "url"
+        end
+        unless hosts.empty?
+          @config[:host] = hosts.join(",")
+          @tasks << "host"
+        end
+        @tasks.uniq!
+      end
+
+      if @tasks.empty?
+        @tasks += Array.wrap(@config[:default_task])
       end
 
       Signal.trap(:INT) do
@@ -103,7 +126,7 @@ module Mogrin
         end
       end
 
-      @args.each do |task|
+      @tasks.each do |task|
         "mogrin/#{task}_task".classify.constantize.new(self).execute
         if @signal_interrupt
           break
@@ -115,30 +138,34 @@ module Mogrin
       end
     end
 
-    def servers
-      if @config[:servers]
-        items = @config[:servers]
+    def hosts
+      if @config[:host]
+        items = @config[:host].split(",").collect{|str|{:host => str}}
+      elsif @config[:local]
+        items = {:host => "localhost"}
       else
-        items = [
-          {:host => "localhost"},
-        ]
+        items = @config[:hosts]
+        if @config[:servers]
+          STDERR.puts "DEPRECATION: @config[:servers]"
+          items ||= @config[:servers]
+        end
       end
       filter(items, [:desc, :host])
     end
 
     def urls
-      if @config[:urls]
-        items = @config[:urls]
+      if @config[:url]
+        items = @config[:url].split(",").collect{|str|{:url => normalize_url(str)}}
+      elsif @config[:local]
+        items = [{:url => "http://localhost:3000/"}]
       else
-        items = [
-          {:url => "http://localhost/"},
-          {:url => "http://www.google.co.jp/"},
-        ]
+        items = @config[:urls]
       end
       filter(items, [:desc, :url])
     end
 
     def filter(items, keys)
+      items = Array.wrap(items)
       if @config[:match]
         items.find_all{|item|
           keys.any?{|key|
@@ -153,7 +180,7 @@ module Mogrin
     end
 
     def logger_puts(str)
-      str = str.to_s.scan(/./).first(256).compact.join
+      str = str.to_s.scan(/./).first(128).compact.join
       if @config[:debug]
         if @config[:append_log]
           @alog << str
@@ -164,9 +191,8 @@ module Mogrin
     end
 
     def quiet
-      unless @config[:quiet]
-        yield
-      end
+      return if @config[:quiet]
+      yield
     end
 
     def command_run(command)
@@ -184,9 +210,7 @@ module Mogrin
     end
 
     def int_block(&block)
-      if @signal_interrupt
-        return
-      end
+      return if @signal_interrupt
       t = Thread.start(&block)
       while t.alive?
         if @signal_interrupt
@@ -196,6 +220,16 @@ module Mogrin
         sleep(0.001)
       end
       t.value
+    end
+
+    def normalize_url(url)
+      url = url.to_s.strip
+      if url.match(/^h?ttps?:/)
+        url
+      else
+        url = "http://#{url}"
+      end
+      URI(url).normalize.to_s
     end
   end
 
@@ -237,26 +271,33 @@ module Mogrin
     end
   end
 
-  class ServerTask < Task
+  class HostTask < Task
     def execute
-      rows = agent_execute(Agent::ServerAgent, @base.servers)
+      rows = agent_execute(Agent::HostAgent, @base.hosts)
       if rows.present?
         @base.quiet{puts}
         puts RainTable.generate(rows){|options|
           options[:select] = [
-            {:key => :s_desc,            :label => "用途",     :size => nil},
-            {:key => :s_host,            :label => "鯖名",     :size => nil},
+            {:key => :a_desc,            :label => "用途",     :size => nil},
+            {:key => :a_host,            :label => "鯖名",     :size => nil},
             {:key => :t_name2ip,         :label => "正引き",   :size => nil},
             {:key => :t_ip2name,         :label => "逆引き",   :size => 12},
             {:key => :t_inside_hostname, :label => "内側HN",   :size => nil},
-            {:key => :t_loadavg,         :label => "AVG",      :size => nil},
-            # {:key => :t_passenger_count, :label => "PSG",      :size => nil},
-            {:key => :t_nginx_count,     :label => "NGX",      :size => nil},
-            {:key => :t_unicorn_count,   :label => "UNC",      :size => nil},
-            {:key => :t_resque_count,    :label => "RSQ",      :size => nil},
-            {:key => :t_resque_count2,   :label => "RSW",      :size => nil},
-            {:key => :t_redis_count,     :label => "RDS",      :size => nil},
-            {:key => :t_memcached_count, :label => "MEC",      :size => nil},
+            {:key => :t_loadavg,         :label => "LAVG",     :size => nil},
+            {:key => :t_uptime,          :label => "UP",       :size => nil},
+            {:key => :t_pid_count,       :label => "IDS",      :size => nil, :padding => 0},
+            {:key => :t_nginx_count,     :label => "NGX",      :size => nil, :padding => 0},
+            {:key => :t_nginx_count2,    :label => "NGS",      :size => nil, :padding => 0},
+            {:key => :t_unicorn_count,   :label => "UCN",      :size => nil, :padding => 0},
+            {:key => :t_unicorn_count2,  :label => "UCS",      :size => nil, :padding => 0},
+            {:key => :t_resque_count,    :label => "RSQ",      :size => nil, :padding => 0},
+            {:key => :t_resque_count2,   :label => "RSW",      :size => nil, :padding => 0},
+            {:key => :t_redis_count,     :label => "RDS",      :size => nil, :padding => 0},
+            {:key => :t_haproxy_count,   :label => "PRX",      :size => nil, :padding => 0},
+            {:key => :t_memcached_count, :label => "MEM",      :size => nil, :padding => 0},
+            {:key => :t_git_count,       :label => "Git",      :size => nil, :padding => 0},
+            {:key => :t_sshd_count,      :label => "SSH",      :size => nil, :padding => 0},
+            {:key => :t_god_count,       :label => "GOD",      :size => nil, :padding => 0},
             # {:key => :t_sleep,           :label => "SLEEP",    :size => nil},
           ]
         }
@@ -271,8 +312,8 @@ module Mogrin
         @base.quiet{puts}
         puts RainTable.generate(rows){|options|
           options[:select] = [
-            {:key => :s_desc,             :label => "DESC",     :size => nil},
-            {:key => :s_url,              :label => "URL",      :size => nil},
+            {:key => :a_desc,             :label => "DESC",     :size => nil},
+            {:key => :a_url,              :label => "URL",      :size => nil},
             {:key => :s_status,           :label => "RET",      :size => 6},
             {:key => :s_response_time,    :label => "反速",     :size => nil},
             {:key => :s_site_title,       :label => "Title",    :size => 8},
@@ -282,7 +323,7 @@ module Mogrin
             {:key => :t_before_days,      :label => "過時",     :size => nil},
             {:key => :t_pending_count,    :label => "PD",       :size => nil},
             # {:key => :s_x_runtime,        :label => "x-rt",     :size => 4},
-            # {:key => :s_server,           :label => "鯖面",     :size => 4},
+            # {:key => :a_host,           :label => "鯖面",     :size => 4},
           ]
         }
       end
@@ -296,7 +337,7 @@ module Mogrin
         puts "#{info[:url]}"
       }
       puts
-      @base.servers.each{|info|
+      @base.hosts.each{|info|
         puts "■#{info[:desc]}"
         puts "ssh #{info[:host]}"
       }
@@ -317,10 +358,10 @@ if $0 == __FILE__
       {:url => "http://www.nicovideo.jp/"},
     ]
 
-    obj.args = ["server"]
+    obj.args = ["host"]
     obj.config[:skip_config] = true
     obj.config[:debug] = true
-    obj.config[:servers] = [
+    obj.config[:hosts] = [
       {:host => "localhost"},
     ]
   }

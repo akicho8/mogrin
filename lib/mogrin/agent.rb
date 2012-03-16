@@ -17,6 +17,7 @@ module Mogrin
       def result
         run
         attrs = {}
+        private_methods.grep(/\A([a]_)/).each{|key|attrs.update(key => send(key))}
         if @base.config[:single]
           attrs.update(single_response(private_methods.grep(/\A([st]_)/)))
         else
@@ -68,6 +69,7 @@ module Mogrin
       end
 
       def method_run(key)
+        return if @base.config[:dry_run]
         begin
           v = send(key)
           @base.quiet{print "."}
