@@ -26,6 +26,7 @@ module Mogrin
         oparser.on("-s", "--host=HOST", "ホストの指定"){|v|config[:host] = v}
         oparser.on("-u", "--url=URL", "URLの指定"){|v|config[:url] = v}
         oparser.on("-t", "--timeout=Float", "タイムアウト(#{config[:timeout]})", Float){|v|config[:timeout] = v}
+        oparser.on("--pretty=TYPE", "鯖チェック結果の表示タイプ(full/process/dns/ssh)(default:#{config[:pretty]})", String){|v|config[:pretty] = v}
         oparser.on("レアオプション:")
         oparser.on("-x", "--skip-config", "デフォルトの設定ファイルを読み込まない(#{config[:skip_config]})"){|v|config[:skip_config] = v}
         oparser.on("-f", "--file=FILE", "読み込むファイルを指定", String) {|v|config[:file] = v}

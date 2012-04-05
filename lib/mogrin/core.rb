@@ -62,6 +62,7 @@ module Mogrin
         :host         => nil,
         :local        => false,
         :dry_run      => false,
+        :pretty       => :full,
       }
     end
 
@@ -201,7 +202,7 @@ module Mogrin
       stdout.encode!("utf-8", :invalid => :replace)
       stderr.encode!("utf-8", :invalid => :replace)
       if stdout.present?
-        logger_puts "        out: #{stdout.inspect}"
+        logger_puts "     out: #{stdout.inspect}"
       end
       if stderr.present?
         logger_puts "     err: #{stderr.inspect}"
@@ -244,11 +245,11 @@ module Mogrin
 
     private
 
-    def agent_execute(klass, items)
+    def agent_execute(klass, items, options = {})
       if @base.config[:single]
         items.each.with_index.collect{|item, index|
           @base.quiet{print "#{items.size - index} "}
-          @base.int_block{klass.new(@base, item).result}
+          @base.int_block{klass.new(@base, item, options).result}
         }.compact
       else
         threads = items.each.with_index.collect{|item, index|
@@ -273,35 +274,48 @@ module Mogrin
 
   class HostTask < Task
     def execute
-      rows = agent_execute(Agent::HostAgent, @base.hosts)
+      commands = select_fields.collect{|e|e[:key]}
+      rows = agent_execute(Agent::HostAgent, @base.hosts, :commands => commands)
       if rows.present?
         @base.quiet{puts}
-        puts RainTable.generate(rows){|options|
-          options[:select] = [
-            {:key => :a_desc,            :label => "用途",     :size => nil},
-            {:key => :a_host,            :label => "鯖名",     :size => nil},
-            {:key => :t_name2ip,         :label => "正引き",   :size => nil},
-            {:key => :t_ip2name,         :label => "逆引き",   :size => 12},
-            {:key => :t_inside_hostname, :label => "内側HN",   :size => nil},
-            {:key => :t_loadavg,         :label => "LAVG",     :size => nil},
-            {:key => :t_uptime,          :label => "UP",       :size => nil},
-            {:key => :t_pid_count,       :label => "IDS",      :size => nil, :padding => 0},
-            {:key => :t_nginx_count,     :label => "NGX",      :size => nil, :padding => 0},
-            {:key => :t_nginx_count2,    :label => "NGS",      :size => nil, :padding => 0},
-            {:key => :t_unicorn_count,   :label => "UCN",      :size => nil, :padding => 0},
-            {:key => :t_unicorn_count2,  :label => "UCS",      :size => nil, :padding => 0},
-            {:key => :t_resque_count,    :label => "RSQ",      :size => nil, :padding => 0},
-            {:key => :t_resque_count2,   :label => "RSW",      :size => nil, :padding => 0},
-            {:key => :t_redis_count,     :label => "RDS",      :size => nil, :padding => 0},
-            {:key => :t_haproxy_count,   :label => "PRX",      :size => nil, :padding => 0},
-            {:key => :t_memcached_count, :label => "MEM",      :size => nil, :padding => 0},
-            {:key => :t_git_count,       :label => "Git",      :size => nil, :padding => 0},
-            {:key => :t_sshd_count,      :label => "SSH",      :size => nil, :padding => 0},
-            {:key => :t_god_count,       :label => "GOD",      :size => nil, :padding => 0},
-            # {:key => :t_sleep,           :label => "SLEEP",    :size => nil},
-          ]
-        }
+        puts RainTable.generate(rows, :select => select_fields)
       end
+    end
+
+    def select_fields
+      select = []
+      select << {:key => :a_desc,            :label => "用途",     :size => nil}
+      select << {:key => :a_host,            :label => "鯖名",     :size => nil}
+      if @base.config[:pretty].to_s.in?(["full", "dns"])
+        select << {:key => :t_name2ip,         :label => "正引き",   :size => nil}
+        select << {:key => :t_ip2name,         :label => "逆引き",   :size => 12}
+        select << {:key => :t_inside_hostname, :label => "内側HN",   :size => nil}
+      end
+      if @base.config[:pretty].to_s.in?(["full", "process", "ssh"])
+        select << {:key => :t_loadavg,         :label => "LAVG",     :size => nil, :padding => 0}
+        select << {:key => :t_uptime,          :label => "UP",       :size => nil, :padding => 0}
+        select << {:key => :t_pid_count,       :label => "IDS",      :size => nil, :padding => 0}
+        select << {:key => :t_nginx_count,     :label => "NGX",      :size => nil, :padding => 0}
+        select << {:key => :t_nginx_count2,    :label => "NGS",      :size => nil, :padding => 0}
+        select << {:key => :t_unicorn_count,   :label => "UCN",      :size => nil, :padding => 0}
+        select << {:key => :t_unicorn_count2,  :label => "UCS",      :size => nil, :padding => 0}
+        select << {:key => :t_resque_count,    :label => "RSQ",      :size => nil, :padding => 0}
+        select << {:key => :t_resque_count2,   :label => "RSW",      :size => nil, :padding => 0}
+        select << {:key => :t_redis_count,     :label => "RDS",      :size => nil, :padding => 0}
+        select << {:key => :t_haproxy_count,   :label => "PRX",      :size => nil, :padding => 0}
+        select << {:key => :t_memcached_count, :label => "MEM",      :size => nil, :padding => 0}
+        select << {:key => :t_git_count,       :label => "Git",      :size => nil, :padding => 0}
+        select << {:key => :t_sshd_count,      :label => "SSH",      :size => nil, :padding => 0}
+        select << {:key => :t_god_count,       :label => "GOD",      :size => nil, :padding => 0}
+      end
+      # select << {:key => :t_sleep,           :label => "SLEEP",    :size => nil}
+      # case @base.config[:pretty].to_s
+      # when "short"
+      #   select.reject!{|e|e[:key].in?([:t_name2ip, :t_ip2name, :t_inside_hostname])}
+      # when "medium"
+      #   select.reject!{|e|e[:key].in?([:t_name2ip, :t_ip2name, :t_inside_hostname])}
+      # end
+      select
     end
   end
 

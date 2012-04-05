@@ -5,6 +5,14 @@ GIT
     rain_table (0.1.0)
       activesupport
 
+PATH
+  remote: .
+  specs:
+    mogrin (0.1.4)
+      activesupport
+      httparty
+      tapp
+
 GEM
   remote: http://rubygems.org/
   specs:
@@ -16,9 +24,9 @@ GEM
       multi_xml
     i18n (0.6.0)
     multi_json (1.1.0)
-    multi_xml (0.4.1)
+    multi_xml (0.4.2)
     rspec-core (2.8.0)
-    tapp (1.3.0)
+    tapp (1.3.1)
       thor
     thor (0.14.6)
 
@@ -26,8 +34,6 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  activesupport
-  httparty
+  mogrin!
   rain_table!
   rspec-core
-  tapp

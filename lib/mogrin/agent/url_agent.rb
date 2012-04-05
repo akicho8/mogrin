@@ -9,8 +9,8 @@ require "httparty"
 module Mogrin
   module Agent
     class UrlAgent < Base
-      def initialize(base, url_info)
-        super(base)
+      def initialize(base, url_info, options = {})
+        super(base, options)
         @url_info = url_info
       end
 

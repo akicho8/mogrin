@@ -6,8 +6,8 @@ end
 module Mogrin
   module Agent
     class HostAgent < Base
-      def initialize(base, host_info)
-        super(base)
+      def initialize(base, host_info, options = {})
+        super(base, options)
         @host_info = host_info
       end
 

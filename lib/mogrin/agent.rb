@@ -7,8 +7,9 @@ require "resolv"
 module Mogrin
   module Agent
     class Base
-      def initialize(base)
+      def initialize(base, options = {})
         @base = base
+        @options = {}
       end
 
       def run
@@ -17,12 +18,12 @@ module Mogrin
       def result
         run
         attrs = {}
-        private_methods.grep(/\A([a]_)/).each{|key|attrs.update(key => send(key))}
+        filter(private_methods.grep(/\A([a]_)/)).each{|key|attrs.update(key => send(key))}
         if @base.config[:single]
-          attrs.update(single_response(private_methods.grep(/\A([st]_)/)))
+          attrs.update(single_response(filter(private_methods.grep(/\A([st]_)/))))
         else
-          attrs.update(single_response(private_methods.grep(/\A(s_)/)))
-          attrs.update(thread_response(private_methods.grep(/\A(t_)/)))
+          attrs.update(single_response(filter(private_methods.grep(/\A(s_)/))))
+          attrs.update(thread_response(filter(private_methods.grep(/\A(t_)/))))
         end
       end
 
@@ -83,6 +84,14 @@ module Mogrin
 
       def thread_status(threads)
         @base.logger_puts(threads.values.collect(&:status).pretty_inspect)
+      end
+
+      def filter(_methods)
+        if @options[:command]
+          _methods.find_all{|e|e.to_sym.include?(@options[:command])}
+        else
+          _methods
+        end
       end
     end
   end
