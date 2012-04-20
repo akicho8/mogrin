@@ -79,6 +79,12 @@ module Mogrin
         end
       end
 
+      def s_ct
+        if @response
+          @response.headers["content-type"].to_s.gsub(/;.*/, "").split("/").last
+        end
+      end
+
       module RevisionMethods
         private
 
