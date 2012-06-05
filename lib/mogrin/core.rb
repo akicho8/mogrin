@@ -3,6 +3,7 @@
 require "active_support/core_ext/string"
 require "active_support/core_ext/array"
 require "active_support/buffered_logger"
+require "active_support/core_ext/object/inclusion"
 require "rain_table"
 require "open3"
 require "tapp"

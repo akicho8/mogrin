@@ -16,7 +16,7 @@ Gem::Specification.new do |s|
   s.require_paths = ["lib"]
   s.rdoc_options = ["--line-numbers", "--inline-source", "--charset=UTF-8", "--diagram", "--image-format=jpg"]
 
-  s.add_dependency "activesupport"
+  s.add_dependency "activesupport", ">= 3.2.5"
   s.add_dependency "httparty"
   s.add_dependency "tapp"
   # s.add_dependency "rain_table", :git => "https://github.com/akicho8/rain_table.git"
