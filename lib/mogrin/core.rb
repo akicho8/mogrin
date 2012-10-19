@@ -328,14 +328,14 @@ module Mogrin
         puts RainTable.generate(rows){|options|
           options[:select] = [
             {:key => :a_desc,             :label => "DESC",   :size => nil},
-            {:key => :a_url,              :label => "URL",    :size => 60},
+            {:key => :a_url,              :label => "URL",    :size => 57},
             {:key => :s_status,           :label => "RET",    :size => 6},
             {:key => :s_response_time,    :label => "反速",   :size => nil},
-            {:key => :s_site_title,       :label => "Title",  :size => 6},
+            {:key => :s_site_title,       :label => "Title",  :size => 5},
             {:key => :s_ct,               :label => "Type",   :size => 4},
             {:key => :s_revision,         :label => "Ref",    :size => 7},
             {:key => :s_updated_at_s,     :label => "最終",   :size => nil},
-            {:key => :t_commiter,         :label => "書",     :size => 3},
+            {:key => :t_commiter,         :label => "書",     :size => 2},
             {:key => :t_before_days,      :label => "過",     :size => nil},
             {:key => :t_pending_count,    :label => "PD",     :size => nil},
             # {:key => :s_x_runtime,        :label => "x-rt", :size => 4},
